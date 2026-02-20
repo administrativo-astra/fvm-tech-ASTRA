@@ -2,7 +2,8 @@
 
 import { MetricCard } from "@/components/metric-card";
 import { FunnelVisual } from "@/components/funnel-visual";
-import { mockData, getMonthTotals } from "@/lib/mock-data";
+import { UtmAnalysis } from "@/components/utm-analysis";
+import { mockData, getMonthTotals, getUtmAnalysis, getUtmTotal } from "@/lib/mock-data";
 import {
   formatCurrency,
   formatNumber,
@@ -24,6 +25,10 @@ export default function MarketingPage() {
   const cpm = calcCPM(totals.spent, totals.impressions);
   const cpc = calcCPC(totals.spent, totals.clicks);
   const cpl = calcCPL(totals.spent, totals.leads);
+
+  const [utmMetric, setUtmMetric] = useState<"leads" | "qualifiedLeads">("qualifiedLeads");
+  const utmData = getUtmAnalysis(month.month, utmMetric);
+  const utmTotal = getUtmTotal(month.month, utmMetric);
   const frequency =
     totals.reach > 0 ? (totals.impressions / totals.reach).toFixed(2) : "0";
 
@@ -148,6 +153,43 @@ export default function MarketingPage() {
           steps={marketingFunnelSteps}
           direction="horizontal"
           variant="marketing"
+        />
+      </div>
+
+      {/* UTM Analysis */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold text-white/25 uppercase tracking-widest">Analisar por:</span>
+          <button
+            onClick={() => setUtmMetric("leads")}
+            className={`rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all duration-200 ${
+              utmMetric === "leads"
+                ? "bg-orange-500/15 text-orange-400 border border-orange-500/25"
+                : "text-white/35 hover:text-white/55 hover:bg-white/[0.04]"
+            }`}
+          >
+            Leads
+          </button>
+          <button
+            onClick={() => setUtmMetric("qualifiedLeads")}
+            className={`rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all duration-200 ${
+              utmMetric === "qualifiedLeads"
+                ? "bg-orange-500/15 text-orange-400 border border-orange-500/25"
+                : "text-white/35 hover:text-white/55 hover:bg-white/[0.04]"
+            }`}
+          >
+            Leads Qualificados
+          </button>
+        </div>
+        <UtmAnalysis
+          title={`Análise UTM - ${month.month}`}
+          totalLabel={utmMetric === "leads" ? "Total de Leads por UTM" : "Total de Leads Qualificados por UTM"}
+          totalValue={utmTotal}
+          campaigns={utmData.campaigns}
+          adsets={utmData.adsets}
+          creatives={utmData.creatives}
+          variant="marketing"
+          metricLabel={utmMetric === "leads" ? "Leads" : "Leads Qualificados"}
         />
       </div>
 

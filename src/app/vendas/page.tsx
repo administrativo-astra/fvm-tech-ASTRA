@@ -2,7 +2,8 @@
 
 import { MetricCard } from "@/components/metric-card";
 import { FunnelVisual } from "@/components/funnel-visual";
-import { mockData, getMonthTotals } from "@/lib/mock-data";
+import { UtmAnalysis } from "@/components/utm-analysis";
+import { mockData, getMonthTotals, getUtmAnalysis, getUtmTotal } from "@/lib/mock-data";
 import {
   formatCurrency,
   formatNumber,
@@ -28,6 +29,10 @@ export default function VendasPage() {
   const rateVisitToFollowUp = calcRate(totals.visits, totals.followUp);
   const rateFollowUpToSale = calcRate(totals.followUp, totals.sales);
   const rateLeadToSale = calcRate(totals.leads, totals.sales);
+
+  const [utmMetric, setUtmMetric] = useState<"visits" | "sales">("visits");
+  const utmData = getUtmAnalysis(month.month, utmMetric);
+  const utmTotal = getUtmTotal(month.month, utmMetric);
 
   const vendasFunnelSteps = [
     {
@@ -87,7 +92,7 @@ export default function VendasPage() {
               onClick={() => setSelectedMonth(i)}
               className={`rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ${
                 selectedMonth === i
-                  ? "bg-blue-500/15 text-blue-400 border border-blue-500/25 shadow-[0_0_10px_-3px_rgba(59,130,246,0.2)]"
+                  ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 shadow-[0_0_10px_-3px_rgba(34,197,94,0.2)]"
                   : "glass text-white/40 hover:text-white/60 hover:bg-white/[0.06]"
               }`}
             >
@@ -143,7 +148,7 @@ export default function VendasPage() {
           <p className="text-[9px] font-semibold text-white/30 uppercase tracking-widest">
             Taxa de MQL
           </p>
-          <p className="mt-1 text-xl font-bold text-blue-400">
+          <p className="mt-1 text-xl font-bold text-emerald-400">
             {formatPercent(rateLeadToQualified)}
           </p>
           <p className="text-[9px] text-white/20">Lead → Qualificado</p>
@@ -152,7 +157,7 @@ export default function VendasPage() {
           <p className="text-[9px] font-semibold text-white/30 uppercase tracking-widest">
             MQL → Visita
           </p>
-          <p className="mt-1 text-xl font-bold text-blue-400">
+          <p className="mt-1 text-xl font-bold text-emerald-400">
             {formatPercent(rateQualifiedToVisit)}
           </p>
           <p className="text-[9px] text-white/20">Qualificado → Visita</p>
@@ -161,7 +166,7 @@ export default function VendasPage() {
           <p className="text-[9px] font-semibold text-white/30 uppercase tracking-widest">
             Visita → Follow
           </p>
-          <p className="mt-1 text-xl font-bold text-blue-400">
+          <p className="mt-1 text-xl font-bold text-emerald-400">
             {formatPercent(rateVisitToFollowUp)}
           </p>
           <p className="text-[9px] text-white/20">Visita → Follow-up</p>
@@ -170,7 +175,7 @@ export default function VendasPage() {
           <p className="text-[9px] font-semibold text-white/30 uppercase tracking-widest">
             Follow → Matrícula
           </p>
-          <p className="mt-1 text-xl font-bold text-blue-400">
+          <p className="mt-1 text-xl font-bold text-emerald-400">
             {formatPercent(rateFollowUpToSale)}
           </p>
           <p className="text-[9px] text-white/20">Follow-up → Matrícula</p>
@@ -196,10 +201,47 @@ export default function VendasPage() {
         />
       </div>
 
+      {/* UTM Analysis */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold text-white/25 uppercase tracking-widest">Analisar por:</span>
+          <button
+            onClick={() => setUtmMetric("visits")}
+            className={`rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all duration-200 ${
+              utmMetric === "visits"
+                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
+                : "text-white/35 hover:text-white/55 hover:bg-white/[0.04]"
+            }`}
+          >
+            Visitas
+          </button>
+          <button
+            onClick={() => setUtmMetric("sales")}
+            className={`rounded-lg px-3 py-1.5 text-[11px] font-medium transition-all duration-200 ${
+              utmMetric === "sales"
+                ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
+                : "text-white/35 hover:text-white/55 hover:bg-white/[0.04]"
+            }`}
+          >
+            Vendas / Matrículas
+          </button>
+        </div>
+        <UtmAnalysis
+          title={`Análise UTM - ${month.month}`}
+          totalLabel={utmMetric === "visits" ? "Total de Visitas por UTM" : "Total de Vendas por UTM"}
+          totalValue={utmTotal}
+          campaigns={utmData.campaigns}
+          adsets={utmData.adsets}
+          creatives={utmData.creatives}
+          variant="vendas"
+          metricLabel={utmMetric === "visits" ? "Visitas" : "Vendas"}
+        />
+      </div>
+
       {/* Weekly breakdown table */}
       <div className="rounded-2xl glass-strong overflow-hidden">
-        <div className="border-b border-blue-500/10 bg-blue-500/[0.04] px-6 py-3">
-          <h3 className="text-sm font-semibold text-blue-400/80">
+        <div className="border-b border-emerald-500/10 bg-emerald-500/[0.04] px-6 py-3">
+          <h3 className="text-sm font-semibold text-emerald-400/80">
             Detalhamento Semanal - {month.month}
           </h3>
         </div>
@@ -264,7 +306,7 @@ export default function VendasPage() {
                   <td className="px-4 py-3 text-right text-white/60">
                     {formatNumber(week.followUp)}
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold text-blue-400">
+                  <td className="px-4 py-3 text-right font-semibold text-emerald-400">
                     {formatNumber(week.sales)}
                   </td>
                   <td className="px-4 py-3 text-right text-white/35">
@@ -287,8 +329,8 @@ export default function VendasPage() {
                   </td>
                 </tr>
               ))}
-              <tr className="bg-blue-500/[0.04] font-semibold border-t border-blue-500/10">
-                <td className="px-4 py-3 text-blue-400/80">TOTAL</td>
+              <tr className="bg-emerald-500/[0.04] font-semibold border-t border-emerald-500/10">
+                <td className="px-4 py-3 text-emerald-400/80">TOTAL</td>
                 <td className="px-4 py-3 text-right text-white/80">
                   {formatNumber(totals.leads)}
                 </td>
@@ -301,7 +343,7 @@ export default function VendasPage() {
                 <td className="px-4 py-3 text-right text-white/80">
                   {formatNumber(totals.followUp)}
                 </td>
-                <td className="px-4 py-3 text-right text-blue-400">
+                <td className="px-4 py-3 text-right text-emerald-400">
                   {formatNumber(totals.sales)}
                 </td>
                 <td className="px-4 py-3 text-right text-white/50">

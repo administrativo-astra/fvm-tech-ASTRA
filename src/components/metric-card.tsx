@@ -29,7 +29,7 @@ export function MetricCard({
       className={cn(
         "group relative overflow-hidden rounded-xl p-4 transition-all duration-300 glass gradient-border hover:bg-white/[0.06]",
         variant === "marketing" && "shadow-[inset_0_1px_0_0_rgba(255,165,0,0.1)]",
-        variant === "vendas" && "shadow-[inset_0_1px_0_0_rgba(59,130,246,0.1)]",
+        variant === "vendas" && "shadow-[inset_0_1px_0_0_rgba(34,197,94,0.1)]",
         variant === "accent" && "shadow-[inset_0_1px_0_0_rgba(230,59,23,0.15)] glow-sm",
         size === "sm" && "p-3",
         size === "lg" && "p-6"
