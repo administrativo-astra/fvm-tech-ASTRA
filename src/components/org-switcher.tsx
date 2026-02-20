@@ -25,6 +25,7 @@ export function OrgSwitcher({ collapsed }: OrgSwitcherProps) {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
   const activeOrg = orgs.find((o) => o.is_active);
@@ -84,30 +85,32 @@ export function OrgSwitcher({ collapsed }: OrgSwitcherProps) {
   async function handleCreateOrg() {
     if (!newOrgName.trim()) return;
     setCreating(true);
+    setCreateError("");
     try {
       const res = await fetch("/api/organizations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newOrgName }),
       });
-      if (res.ok) {
-        const json = await res.json();
-        // Switch to the new org
-        if (json.orgId) {
-          await fetch("/api/organizations/switch", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ organizationId: json.orgId }),
-          });
-          window.location.href = "/";
-        }
+      const json = await res.json();
+      if (!res.ok) {
+        setCreateError(json.error || "Erro ao criar organização");
+        setCreating(false);
+        return;
+      }
+      // Switch to the new org
+      if (json.orgId) {
+        await fetch("/api/organizations/switch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ organizationId: json.orgId }),
+        });
+        window.location.href = "/";
       }
     } catch {
-      // ignore
+      setCreateError("Erro de conexão");
     } finally {
       setCreating(false);
-      setNewOrgName("");
-      setShowAddForm(false);
     }
   }
 
@@ -263,9 +266,12 @@ export function OrgSwitcher({ collapsed }: OrgSwitcherProps) {
                 autoFocus
                 className="w-full rounded-lg border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[11px] text-white/80 placeholder:text-white/20 focus:border-astra-red/30 focus:outline-none transition-all"
               />
+              {createError && (
+                <p className="text-[10px] text-red-400">{createError}</p>
+              )}
               <div className="flex gap-1.5">
                 <button
-                  onClick={() => { setShowAddForm(false); setNewOrgName(""); }}
+                  onClick={() => { setShowAddForm(false); setNewOrgName(""); setCreateError(""); }}
                   className="flex-1 rounded-lg px-2 py-1.5 text-[10px] font-medium text-white/30 hover:text-white/50 glass transition-all"
                 >
                   Cancelar

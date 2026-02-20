@@ -116,7 +116,7 @@ export async function POST(request: Request) {
       .update({
         organization_id: profile.organization_id,
         role: assignedRole,
-        full_name: full_name || existingProfile?.id,
+        ...(full_name ? { full_name } : {}),
       })
       .eq("id", existingUser.id);
 

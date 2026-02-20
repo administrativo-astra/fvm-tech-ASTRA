@@ -53,6 +53,8 @@ export async function PUT(request: Request) {
   }
 
   const admin = await createServerSupabaseAdmin();
+
+  // Update profiles
   const { error } = await admin
     .from("profiles")
     .update({ role, updated_at: new Date().toISOString() })
@@ -61,6 +63,13 @@ export async function PUT(request: Request) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Keep user_organizations in sync
+  await admin
+    .from("user_organizations")
+    .update({ role })
+    .eq("user_id", userId)
+    .eq("organization_id", profile.organization_id);
 
   return NextResponse.json({ message: "Papel atualizado com sucesso" });
 }

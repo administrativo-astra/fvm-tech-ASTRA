@@ -1,6 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+
+// Admin client bypasses RLS — needed for user_organizations insert
+function getAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -65,7 +74,9 @@ export async function GET(request: Request) {
               .eq("id", user.id);
 
             // Also insert into user_organizations for multi-org support
-            await supabase
+            // Must use admin client — RLS blocks insert for users with no existing membership
+            const admin = getAdminClient();
+            await admin
               .from("user_organizations")
               .upsert({
                 user_id: user.id,
