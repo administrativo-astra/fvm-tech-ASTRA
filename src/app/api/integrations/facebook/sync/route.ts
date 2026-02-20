@@ -132,10 +132,10 @@ export async function POST(request: Request) {
           clicks,
           leads,
           qualified_leads: 0,
-          scheduled_visits: 0,
+          visits: 0,
           sales: purchases,
           source: "facebook_ads",
-        }, { onConflict: "organization_id,month,week,campaign_id" });
+        }, { onConflict: "organization_id,campaign_id,period_start,period_end" });
 
       results.funnelRows++;
     }
@@ -153,17 +153,17 @@ export async function POST(request: Request) {
           .upsert({
             organization_id: profile.organization_id,
             month: monthName,
-            campaign_name: utmParams.utm_campaign || ad.campaign?.name || "Sem campanha",
-            adset_name: utmParams.utm_term || ad.adset?.name || "",
-            ad_name: utmParams.utm_content || ad.name || "",
-            source: utmParams.utm_source || "facebook",
-            medium: utmParams.utm_medium || "paid-social",
+            utm_campaign: utmParams.utm_campaign || ad.campaign?.name || "Sem campanha",
+            utm_term: utmParams.utm_term || ad.adset?.name || "",
+            utm_content: utmParams.utm_content || ad.name || "",
+            utm_source: utmParams.utm_source || "facebook",
+            utm_medium: utmParams.utm_medium || "paid-social",
             interactions: 0,
             leads: 0,
             qualified_leads: 0,
-            scheduled_visits: 0,
+            visits: 0,
             sales: 0,
-          }, { onConflict: "organization_id,month,campaign_name,adset_name,ad_name" });
+          }, { onConflict: "organization_id,month,utm_campaign,utm_term,utm_content" });
 
         results.utmRows++;
       }
