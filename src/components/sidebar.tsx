@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase";
+import { OrgSwitcher } from "@/components/org-switcher";
 
 interface NavItem {
   label: string;
@@ -138,6 +139,13 @@ export function Sidebar() {
       </div>
 
       {/* Divider */}
+      <div className="mx-4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+      {/* Org Switcher */}
+      <div className="py-3">
+        <OrgSwitcher collapsed={collapsed} />
+      </div>
+
       <div className="mx-4 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
       {/* Navigation */}

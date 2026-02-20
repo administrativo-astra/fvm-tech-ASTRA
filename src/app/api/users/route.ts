@@ -97,7 +97,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Usuário já está nesta organização" }, { status: 409 });
     }
 
-    // User exists but in another org or no org — update their profile
+    // Add to user_organizations junction table
+    const { error: junctionErr } = await admin
+      .from("user_organizations")
+      .upsert({
+        user_id: existingUser.id,
+        organization_id: profile.organization_id,
+        role: assignedRole,
+      }, { onConflict: "user_id,organization_id" });
+
+    if (junctionErr) {
+      return NextResponse.json({ error: junctionErr.message }, { status: 500 });
+    }
+
+    // Switch their active org to this one
     const { error: updateErr } = await admin
       .from("profiles")
       .update({
@@ -131,6 +144,15 @@ export async function POST(request: Request) {
   }
 
   if (newUser?.user) {
+    // Add to user_organizations junction table
+    await admin
+      .from("user_organizations")
+      .upsert({
+        user_id: newUser.user.id,
+        organization_id: profile.organization_id,
+        role: assignedRole,
+      }, { onConflict: "user_id,organization_id" });
+
     // Update profile with org and role
     const { error: profileErr } = await admin
       .from("profiles")
@@ -199,11 +221,28 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: "Não é possível remover o proprietário" }, { status: 403 });
   }
 
-  // Remove from org (set org to null)
+  // Remove from user_organizations
   const admin = await createServerSupabaseAdmin();
+  await admin
+    .from("user_organizations")
+    .delete()
+    .eq("user_id", targetUserId)
+    .eq("organization_id", profile.organization_id);
+
+  // If this was their active org, switch to another or set null
+  const { data: otherOrgs } = await admin
+    .from("user_organizations")
+    .select("organization_id, role")
+    .eq("user_id", targetUserId)
+    .limit(1)
+    .single();
+
   const { error } = await admin
     .from("profiles")
-    .update({ organization_id: null, role: "viewer" })
+    .update({
+      organization_id: otherOrgs?.organization_id || null,
+      role: otherOrgs?.role || "viewer",
+    })
     .eq("id", targetUserId);
 
   if (error) {

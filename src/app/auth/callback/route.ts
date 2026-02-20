@@ -63,6 +63,15 @@ export async function GET(request: Request) {
                 full_name: user.user_metadata?.full_name || user.email,
               })
               .eq("id", user.id);
+
+            // Also insert into user_organizations for multi-org support
+            await supabase
+              .from("user_organizations")
+              .upsert({
+                user_id: user.id,
+                organization_id: org.id,
+                role: "owner",
+              }, { onConflict: "user_id,organization_id" });
           }
         }
       }

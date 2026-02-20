@@ -23,6 +23,35 @@ CREATE TABLE IF NOT EXISTS profiles (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- 2b. User-Organization memberships (many-to-many)
+CREATE TABLE IF NOT EXISTS user_organizations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'viewer' CHECK (role IN ('owner', 'admin', 'editor', 'viewer')),
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(user_id, organization_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_orgs_user ON user_organizations(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_orgs_org ON user_organizations(organization_id);
+
+-- RLS for user_organizations
+ALTER TABLE user_organizations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own memberships"
+  ON user_organizations FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can manage memberships"
+  ON user_organizations FOR ALL
+  USING (
+    organization_id IN (
+      SELECT uo.organization_id FROM user_organizations uo
+      WHERE uo.user_id = auth.uid() AND uo.role IN ('owner', 'admin')
+    )
+  );
+
 -- 3. Campaigns (marketing campaigns)
 CREATE TABLE IF NOT EXISTS campaigns (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
