@@ -21,8 +21,10 @@ export interface Campaign {
   id: string;
   organization_id: string;
   name: string;
+  external_id: string | null;
   source: "facebook_ads" | "google_ads" | "instagram" | "organic" | "other";
   status: "active" | "paused" | "completed";
+  config: Record<string, unknown>;
   start_date: string | null;
   end_date: string | null;
   created_at: string;
@@ -54,10 +56,31 @@ export interface FunnelData {
 export interface Integration {
   id: string;
   organization_id: string;
-  provider: "facebook_ads" | "google_ads" | "webhook" | "csv";
+  provider: "facebook_ads" | "google_ads" | "google_sheets" | "webhook" | "csv";
   config: Record<string, unknown>;
   is_active: boolean;
   last_sync_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UtmData {
+  id: string;
+  organization_id: string;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  utm_term: string | null;
+  interactions: number;
+  leads: number;
+  qualified_leads: number;
+  visits: number;
+  sales: number;
+  spent: number;
+  period_start: string | null;
+  period_end: string | null;
+  month: string | null;
   created_at: string;
   updated_at: string;
 }
