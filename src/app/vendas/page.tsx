@@ -3,7 +3,8 @@
 import { MetricCard } from "@/components/metric-card";
 import { FunnelVisual } from "@/components/funnel-visual";
 import { UtmAnalysis } from "@/components/utm-analysis";
-import { mockData, getMonthTotals, getUtmAnalysis, getUtmTotal } from "@/lib/mock-data";
+import { useDashboardData } from "@/hooks/use-dashboard-data";
+import { useUtmData } from "@/hooks/use-utm-data";
 import {
   formatCurrency,
   formatNumber,
@@ -14,11 +15,24 @@ import {
   calcRate,
 } from "@/lib/utils";
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 
 export default function VendasPage() {
-  const [selectedMonth, setSelectedMonth] = useState(0);
-  const month = mockData[selectedMonth];
-  const totals = getMonthTotals(month);
+  const {
+    months,
+    selectedMonthIndex: selectedMonth,
+    setSelectedMonthIndex: setSelectedMonth,
+    totals,
+    currentMonth,
+    loading,
+  } = useDashboardData();
+
+  // Force month 0 on first render (vendas page doesn't have "Todos")
+  if (selectedMonth === -1 && months.length > 0) {
+    setSelectedMonth(0);
+  }
+
+  const monthName = currentMonth?.month || months[0]?.month || "";
 
   const cpmql = calcCPMQL(totals.spent, totals.qualifiedLeads);
   const cpv = calcCPV(totals.spent, totals.visits);
@@ -31,8 +45,7 @@ export default function VendasPage() {
   const rateLeadToSale = calcRate(totals.leads, totals.sales);
 
   const [utmMetric, setUtmMetric] = useState<"visits" | "sales">("visits");
-  const utmData = getUtmAnalysis(month.month, utmMetric);
-  const utmTotal = getUtmTotal(month.month, utmMetric);
+  const { campaigns: utmCampaigns, adsets: utmAdsets, creatives: utmCreatives, total: utmTotal } = useUtmData(monthName, utmMetric);
 
   const vendasFunnelSteps = [
     {
@@ -73,6 +86,16 @@ export default function VendasPage() {
     },
   ];
 
+  const weeks = currentMonth?.weeks || months[0]?.weeks || [];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-emerald-400/50" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       {/* Page title */}
@@ -86,7 +109,7 @@ export default function VendasPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          {mockData.map((m, i) => (
+          {months.map((m, i) => (
             <button
               key={m.month}
               onClick={() => setSelectedMonth(i)}
@@ -194,7 +217,7 @@ export default function VendasPage() {
       {/* Vendas Funnel Visual */}
       <div className="rounded-2xl glass-strong p-6">
         <FunnelVisual
-          title={`Funil Comercial - ${month.month}`}
+          title={`Funil Comercial - ${monthName}`}
           steps={vendasFunnelSteps}
           direction="horizontal"
           variant="vendas"
@@ -227,12 +250,12 @@ export default function VendasPage() {
           </button>
         </div>
         <UtmAnalysis
-          title={`Análise UTM - ${month.month}`}
+          title={`Análise UTM - ${monthName}`}
           totalLabel={utmMetric === "visits" ? "Total de Visitas por UTM" : "Total de Vendas por UTM"}
           totalValue={utmTotal}
-          campaigns={utmData.campaigns}
-          adsets={utmData.adsets}
-          creatives={utmData.creatives}
+          campaigns={utmCampaigns}
+          adsets={utmAdsets}
+          creatives={utmCreatives}
           variant="vendas"
           metricLabel={utmMetric === "visits" ? "Visitas" : "Vendas"}
         />
@@ -242,7 +265,7 @@ export default function VendasPage() {
       <div className="rounded-2xl glass-strong overflow-hidden">
         <div className="border-b border-emerald-500/10 bg-emerald-500/[0.04] px-6 py-3">
           <h3 className="text-sm font-semibold text-emerald-400/80">
-            Detalhamento Semanal - {month.month}
+            Detalhamento Semanal - {monthName}
           </h3>
         </div>
         <div className="overflow-x-auto">
@@ -288,7 +311,7 @@ export default function VendasPage() {
               </tr>
             </thead>
             <tbody>
-              {month.weeks.map((week) => (
+              {weeks.map((week) => (
                 <tr
                   key={week.week}
                   className="border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.02] transition-colors"

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { getUtmAnalysis, getUtmTotal } from "@/lib/mock-data";
 
-interface UtmEntry {
+export interface UtmEntry {
   name: string;
   value: number;
   percentage: number;
@@ -15,6 +16,7 @@ interface UseUtmDataReturn {
   total: number;
   loading: boolean;
   error: string | null;
+  isLive: boolean;
 }
 
 export function useUtmData(
@@ -26,6 +28,7 @@ export function useUtmData(
   const [creatives, setCreatives] = useState<UtmEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLive, setIsLive] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -39,8 +42,7 @@ export function useUtmData(
       const json = await res.json();
 
       if (!res.ok) {
-        setError(json.error || "Erro ao buscar UTM");
-        return;
+        throw new Error(json.error || "Erro ao buscar UTM");
       }
 
       // Map the metric to the right field
@@ -64,13 +66,45 @@ export function useUtmData(
           .sort((a, b) => b.value - a.value);
       }
 
-      setCampaigns(toEntries(json.campaigns || []));
-      setAdsets(toEntries(json.adsets || []));
-      setCreatives(toEntries(json.creatives || []));
+      const c = toEntries(json.campaigns || []);
+      const a = toEntries(json.adsets || []);
+      const cr = toEntries(json.creatives || []);
+
+      // If API returned real data, use it
+      if (c.length > 0 || a.length > 0 || cr.length > 0) {
+        setCampaigns(c);
+        setAdsets(a);
+        setCreatives(cr);
+        setIsLive(true);
+        return;
+      }
+
+      // Fallback to mock data
+      useMockFallback();
     } catch {
-      setError("Erro de conexão");
+      // Fallback to mock data on error
+      useMockFallback();
     } finally {
       setLoading(false);
+    }
+
+    function useMockFallback() {
+      if (!month) {
+        setCampaigns([]);
+        setAdsets([]);
+        setCreatives([]);
+        setIsLive(false);
+        return;
+      }
+      const mockMetric = metric === "interactions" ? "interactions" : metric;
+      const data = getUtmAnalysis(month, mockMetric);
+      const total = getUtmTotal(month, mockMetric);
+      setCampaigns(data.campaigns || []);
+      setAdsets(data.adsets || []);
+      setCreatives(data.creatives || []);
+      setIsLive(false);
+      // total is derived below
+      void total;
     }
   }, [month, metric]);
 
@@ -80,5 +114,5 @@ export function useUtmData(
 
   const total = campaigns.reduce((s, c) => s + c.value, 0);
 
-  return { campaigns, adsets, creatives, total, loading, error };
+  return { campaigns, adsets, creatives, total, loading, error, isLive };
 }

@@ -1,17 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { MetricCard } from "@/components/metric-card";
 import { FunnelVisual } from "@/components/funnel-visual";
 import { MonthChart } from "@/components/month-chart";
-import {
-  mockData,
-  getMonthTotals,
-  getAllTotals,
-  getMonthComparison,
-  getMonthlyEvolution,
-  getWeeklyEvolution,
-} from "@/lib/mock-data";
+import { useDashboardData } from "@/hooks/use-dashboard-data";
 import {
   formatCurrency,
   formatNumber,
@@ -35,6 +27,7 @@ import {
   ArrowDownRight,
   Minus,
   Download,
+  Loader2,
 } from "lucide-react";
 
 function TrendBadge({ value }: { value: number }) {
@@ -49,15 +42,20 @@ function TrendBadge({ value }: { value: number }) {
 }
 
 export default function HomePage() {
-  const [selectedMonth, setSelectedMonth] = useState(-1); // -1 = todos
-  const isAll = selectedMonth === -1;
-  const totals = isAll
-    ? getAllTotals()
-    : getMonthTotals(mockData[selectedMonth]);
-  const comparison = isAll ? getMonthComparison(mockData.length - 1) : getMonthComparison(selectedMonth);
+  const {
+    months,
+    selectedMonthIndex: selectedMonth,
+    setSelectedMonthIndex: setSelectedMonth,
+    totals,
+    allTotals,
+    comparison,
+    monthlyEvolution,
+    weeklyEvolution,
+    loading,
+    isLive,
+  } = useDashboardData();
 
-  const monthlyEvo = getMonthlyEvolution();
-  const weeklyEvo = getWeeklyEvolution();
+  const isAll = selectedMonth === -1;
 
   const ctr = calcCTR(totals.clicks, totals.impressions);
   const cpm = calcCPM(totals.spent, totals.impressions);
@@ -133,10 +131,9 @@ export default function HomePage() {
 
   function handleExportCSV() {
     const headers = ["Mês", "Investimento", "Alcance", "Impressões", "Cliques", "Leads", "Qualificados", "Visitas", "Follow-up", "Vendas"];
-    const rows = mockData.map((m) => {
-      const t = getMonthTotals(m);
-      return [m.month, t.spent.toFixed(2), t.reach, t.impressions, t.clicks, t.leads, t.qualifiedLeads, t.visits, t.followUp, t.sales].join(";");
-    });
+    const rows = monthlyEvolution.map((t) =>
+      [t.name, t.spent.toFixed(2), t.reach, t.impressions, t.clicks, t.leads, t.qualifiedLeads, t.visits, t.followUp, t.sales].join(";")
+    );
     const csv = [headers.join(";"), ...rows].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -145,6 +142,30 @@ export default function HomePage() {
     link.download = "fvm-astra-dados.csv";
     link.click();
     URL.revokeObjectURL(url);
+  }
+
+  // Inline helper for per-row comparisons in the table
+  function rowComparison(idx: number) {
+    if (idx <= 0) return null;
+    const curr = monthlyEvolution[idx];
+    const prev = monthlyEvolution[idx - 1];
+    function pct(c: number, p: number) { return p === 0 ? (c > 0 ? 100 : 0) : ((c - p) / p) * 100; }
+    return {
+      leads: pct(curr.leads, prev.leads),
+      qualifiedLeads: pct(curr.qualifiedLeads, prev.qualifiedLeads),
+      sales: pct(curr.sales, prev.sales),
+    };
+  }
+
+  const monthlyEvoChart = monthlyEvolution as unknown as { name: string; [key: string]: string | number }[];
+  const weeklyEvoChart = weeklyEvolution as unknown as { name: string; [key: string]: string | number }[];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-astra-red/50" />
+      </div>
+    );
   }
 
   return (
@@ -172,7 +193,7 @@ export default function HomePage() {
           >
             Todos
           </button>
-          {mockData.map((m, i) => (
+          {months.map((m, i) => (
             <button
               key={m.month}
               onClick={() => setSelectedMonth(i)}
@@ -262,7 +283,7 @@ export default function HomePage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <MonthChart
           title="Evolução Mensal — Funil de Marketing"
-          data={monthlyEvo}
+          data={monthlyEvoChart}
           type="bar"
           lines={[
             { key: "impressions", label: "Impressões", color: "#f97316" },
@@ -272,7 +293,7 @@ export default function HomePage() {
         />
         <MonthChart
           title="Evolução Mensal — Funil Comercial"
-          data={monthlyEvo}
+          data={monthlyEvoChart}
           type="bar"
           lines={[
             { key: "leads", label: "Leads", color: "#f97316" },
@@ -285,7 +306,7 @@ export default function HomePage() {
 
       <MonthChart
         title="Evolução Semanal — Leads & Qualificados"
-        data={weeklyEvo}
+        data={weeklyEvoChart}
         type="area"
         lines={[
           { key: "leads", label: "Leads", color: "#f97316" },
@@ -319,15 +340,14 @@ export default function HomePage() {
               </tr>
             </thead>
             <tbody>
-              {mockData.map((m, i) => {
-                const t = getMonthTotals(m);
+              {monthlyEvolution.map((t, i) => {
                 const mCtr = calcCTR(t.clicks, t.impressions);
                 const mCpl = calcCPL(t.spent, t.leads);
                 const mCac = calcCAC(t.spent, t.sales);
-                const prev = i > 0 ? getMonthComparison(i) : null;
+                const prev = rowComparison(i);
                 return (
-                  <tr key={m.month} className="border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.02] transition-colors">
-                    <td className="px-4 py-3 font-medium text-white/70">{m.month}</td>
+                  <tr key={t.name} className="border-b border-white/[0.04] last:border-b-0 hover:bg-white/[0.02] transition-colors">
+                    <td className="px-4 py-3 font-medium text-white/70">{t.name}</td>
                     <td className="px-4 py-3 text-right text-white/60">{formatCurrency(t.spent)}</td>
                     <td className="px-4 py-3 text-right text-white/60">{formatNumber(t.impressions)}</td>
                     <td className="px-4 py-3 text-right text-white/60">{formatNumber(t.clicks)}</td>
@@ -358,16 +378,16 @@ export default function HomePage() {
               })}
               <tr className="bg-astra-red/[0.04] font-semibold border-t border-astra-red/10">
                 <td className="px-4 py-3 text-astra-red/80">TOTAL</td>
-                <td className="px-4 py-3 text-right text-white/80">{formatCurrency(getAllTotals().spent)}</td>
-                <td className="px-4 py-3 text-right text-white/80">{formatNumber(getAllTotals().impressions)}</td>
-                <td className="px-4 py-3 text-right text-white/80">{formatNumber(getAllTotals().clicks)}</td>
-                <td className="px-4 py-3 text-right text-white/80">{formatPercent(calcCTR(getAllTotals().clicks, getAllTotals().impressions))}</td>
-                <td className="px-4 py-3 text-right text-white/80">{formatNumber(getAllTotals().leads)}</td>
-                <td className="px-4 py-3 text-right text-white/80">{formatNumber(getAllTotals().qualifiedLeads)}</td>
-                <td className="px-4 py-3 text-right text-white/80">{formatNumber(getAllTotals().visits)}</td>
-                <td className="px-4 py-3 text-right text-astra-red">{formatNumber(getAllTotals().sales)}</td>
-                <td className="px-4 py-3 text-right text-white/50">{formatCurrency(calcCPL(getAllTotals().spent, getAllTotals().leads))}</td>
-                <td className="px-4 py-3 text-right text-white/50">{getAllTotals().sales > 0 ? formatCurrency(calcCAC(getAllTotals().spent, getAllTotals().sales)) : "—"}</td>
+                <td className="px-4 py-3 text-right text-white/80">{formatCurrency(allTotals.spent)}</td>
+                <td className="px-4 py-3 text-right text-white/80">{formatNumber(allTotals.impressions)}</td>
+                <td className="px-4 py-3 text-right text-white/80">{formatNumber(allTotals.clicks)}</td>
+                <td className="px-4 py-3 text-right text-white/80">{formatPercent(calcCTR(allTotals.clicks, allTotals.impressions))}</td>
+                <td className="px-4 py-3 text-right text-white/80">{formatNumber(allTotals.leads)}</td>
+                <td className="px-4 py-3 text-right text-white/80">{formatNumber(allTotals.qualifiedLeads)}</td>
+                <td className="px-4 py-3 text-right text-white/80">{formatNumber(allTotals.visits)}</td>
+                <td className="px-4 py-3 text-right text-astra-red">{formatNumber(allTotals.sales)}</td>
+                <td className="px-4 py-3 text-right text-white/50">{formatCurrency(calcCPL(allTotals.spent, allTotals.leads))}</td>
+                <td className="px-4 py-3 text-right text-white/50">{allTotals.sales > 0 ? formatCurrency(calcCAC(allTotals.spent, allTotals.sales)) : "—"}</td>
               </tr>
             </tbody>
           </table>
@@ -377,7 +397,7 @@ export default function HomePage() {
       {/* General Funnel Visualization */}
       <div className="rounded-2xl glass-strong p-8">
         <FunnelVisual
-          title={isAll ? "Resumo Geral" : `Funil — ${mockData[selectedMonth].month}`}
+          title={isAll ? "Resumo Geral" : `Funil — ${months[selectedMonth]?.month || ""}`}
           steps={generalFunnelSteps}
           direction="vertical"
           variant="general"
