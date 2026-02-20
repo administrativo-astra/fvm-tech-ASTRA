@@ -29,18 +29,21 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // If not logged in and trying to access protected routes, redirect to login
+  // Routes that don't require auth
   const isAuthRoute = request.nextUrl.pathname.startsWith("/login") || 
                       request.nextUrl.pathname.startsWith("/signup") ||
                       request.nextUrl.pathname.startsWith("/auth/callback");
+
+  // OAuth callback routes (need auth but shouldn't redirect logged-in users)
+  const isOAuthCallback = request.nextUrl.pathname.startsWith("/api/integrations/facebook/callback");
   
-  if (!user && !isAuthRoute) {
+  if (!user && !isAuthRoute && !isOAuthCallback) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  // If logged in and trying to access auth routes, redirect to home
+  // If logged in and trying to access login/signup, redirect to home
   if (user && isAuthRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/";

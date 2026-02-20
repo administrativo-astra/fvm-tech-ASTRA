@@ -1,43 +1,130 @@
 "use client";
 
-import { Plug, Facebook, BarChart3, Database, Webhook } from "lucide-react";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  Plug,
+  Facebook,
+  BarChart3,
+  Database,
+  Webhook,
+  Loader2,
+  Check,
+  RefreshCw,
+  Unplug,
+  AlertTriangle,
+  Clock,
+  ExternalLink,
+} from "lucide-react";
 
-const integrations = [
-  {
-    name: "Facebook Ads",
-    description: "Conecte sua conta do Facebook Ads para importar dados de campanhas automaticamente.",
-    icon: Facebook,
-    status: "available" as const,
-    color: "bg-blue-500/15 border-blue-500/20",
-    iconColor: "text-blue-400",
-  },
-  {
-    name: "Google Ads",
-    description: "Integre com o Google Ads para acompanhar campanhas de pesquisa e display.",
-    icon: BarChart3,
-    status: "coming_soon" as const,
-    color: "bg-red-500/15 border-red-500/20",
-    iconColor: "text-red-400",
-  },
-  {
-    name: "CRM / Planilhas",
-    description: "Importe dados de vendas via planilha ou conecte seu CRM para atualizar dados automaticamente.",
-    icon: Database,
-    status: "available" as const,
-    color: "bg-emerald-500/15 border-emerald-500/20",
-    iconColor: "text-emerald-400",
-  },
-  {
-    name: "Webhooks",
-    description: "Configure webhooks para receber dados em tempo real de qualquer plataforma.",
-    icon: Webhook,
-    status: "coming_soon" as const,
-    color: "bg-purple-500/15 border-purple-500/20",
-    iconColor: "text-purple-400",
-  },
-];
+interface FacebookStatus {
+  connected: boolean;
+  isExpired?: boolean;
+  adAccountName?: string;
+  adAccountId?: string;
+  userName?: string;
+  lastSyncAt?: string;
+  connectedAt?: string;
+}
 
 export default function IntegracoesPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-white/30">Carregando...</div>}>
+      <IntegracoesContent />
+    </Suspense>
+  );
+}
+
+function IntegracoesContent() {
+  const searchParams = useSearchParams();
+  const [fbStatus, setFbStatus] = useState<FacebookStatus | null>(null);
+  const [fbLoading, setFbLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  // Check for OAuth callback result
+  const successParam = searchParams.get("success");
+  const errorParam = searchParams.get("error");
+
+  const fetchFbStatus = useCallback(async () => {
+    setFbLoading(true);
+    try {
+      const res = await fetch("/api/integrations/facebook/status");
+      const json = await res.json();
+      setFbStatus(json);
+    } catch {
+      setFbStatus({ connected: false });
+    } finally {
+      setFbLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchFbStatus();
+  }, [fetchFbStatus]);
+
+  async function handleFbConnect() {
+    window.location.href = "/api/integrations/facebook/connect";
+  }
+
+  async function handleFbSync() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/integrations/facebook/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setSyncResult({ type: "error", text: json.error || "Erro na sincronização" });
+      } else {
+        setSyncResult({
+          type: "success",
+          text: `Sincronizado: ${json.results?.campaigns || 0} campanhas, ${json.results?.funnelRows || 0} métricas, ${json.results?.utmRows || 0} UTMs`,
+        });
+        fetchFbStatus();
+      }
+    } catch {
+      setSyncResult({ type: "error", text: "Erro de conexão" });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  async function handleFbDisconnect() {
+    if (!confirm("Tem certeza que deseja desconectar o Facebook Ads?")) return;
+    setDisconnecting(true);
+    try {
+      const res = await fetch("/api/integrations/facebook/disconnect", { method: "POST" });
+      if (res.ok) {
+        setFbStatus({ connected: false });
+        setSyncResult(null);
+      }
+    } catch { /* ignore */ }
+    finally { setDisconnecting(false); }
+  }
+
+  function formatDate(dateStr: string | undefined | null) {
+    if (!dateStr) return "Nunca";
+    return new Intl.DateTimeFormat("pt-BR", {
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    }).format(new Date(dateStr));
+  }
+
+  function getErrorMessage(code: string) {
+    switch (code) {
+      case "denied": return "Acesso negado pelo Facebook.";
+      case "no_ad_accounts": return "Nenhuma conta de anúncios encontrada. Verifique se você tem acesso a uma conta de anúncios.";
+      case "token_error": return "Erro ao obter token do Facebook. Tente novamente.";
+      case "db_error": return "Erro ao salvar integração. Tente novamente.";
+      default: return "Erro na conexão. Tente novamente.";
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div>
@@ -47,44 +134,189 @@ export default function IntegracoesPage() {
         </p>
       </div>
 
+      {/* OAuth callback messages */}
+      {successParam === "facebook" && (
+        <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 px-4 py-3 text-sm text-emerald-400 flex items-center gap-2">
+          <Check className="h-4 w-4 shrink-0" />
+          Facebook Ads conectado com sucesso!
+        </div>
+      )}
+      {errorParam && (
+        <div className="rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400 flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          {getErrorMessage(errorParam)}
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2">
-        {integrations.map((integration) => (
-          <div
-            key={integration.name}
-            className="group relative overflow-hidden rounded-2xl p-6 transition-all duration-300 glass hover:bg-white/[0.06] gradient-border"
-          >
-            <div className="flex items-start gap-4">
-              <div
-                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border ${integration.color}`}
-              >
-                <integration.icon className={`h-6 w-6 ${integration.iconColor}`} />
+        {/* ===== FACEBOOK ADS ===== */}
+        <div className="group relative overflow-hidden rounded-2xl p-6 transition-all duration-300 glass gradient-border">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-blue-500/15 border-blue-500/20">
+              <Facebook className="h-6 w-6 text-blue-400" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-white/90">Facebook Ads</h3>
+                {fbLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-white/20" />
+                ) : fbStatus?.connected ? (
+                  <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                    Conectado
+                  </span>
+                ) : fbStatus?.isExpired ? (
+                  <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+                    Token expirado
+                  </span>
+                ) : null}
               </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-white/90">{integration.name}</h3>
-                  {integration.status === "coming_soon" && (
-                    <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-400">
-                      Em breve
-                    </span>
+
+              {fbStatus?.connected ? (
+                <div className="mt-2 space-y-3">
+                  {/* Connected info */}
+                  <div className="rounded-lg glass p-3 space-y-1.5">
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="text-white/30">Conta:</span>
+                      <span className="text-white/70 font-medium">{fbStatus.adAccountName || fbStatus.adAccountId}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="text-white/30">Usuário:</span>
+                      <span className="text-white/70">{fbStatus.userName}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <Clock className="h-3 w-3 text-white/20" />
+                      <span className="text-white/30">Última sync:</span>
+                      <span className="text-white/50">{formatDate(fbStatus.lastSyncAt)}</span>
+                    </div>
+                  </div>
+
+                  {/* Sync result */}
+                  {syncResult && (
+                    <div className={`rounded-lg px-3 py-2 text-[11px] ${
+                      syncResult.type === "success"
+                        ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-400"
+                        : "bg-red-500/10 border border-red-500/20 text-red-400"
+                    }`}>
+                      {syncResult.text}
+                    </div>
                   )}
+
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleFbSync}
+                      disabled={syncing}
+                      className="flex-1 rounded-xl bg-blue-500/15 text-blue-400 border border-blue-500/25 px-3 py-2 text-[11px] font-medium hover:bg-blue-500/25 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                    >
+                      {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                      {syncing ? "Sincronizando..." : "Sincronizar agora"}
+                    </button>
+                    <button
+                      onClick={handleFbDisconnect}
+                      disabled={disconnecting}
+                      className="rounded-xl px-3 py-2 text-[11px] font-medium text-white/30 hover:text-red-400 hover:bg-red-500/10 border border-white/[0.06] hover:border-red-500/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <Unplug className="h-3.5 w-3.5" />
+                      Desconectar
+                    </button>
+                  </div>
                 </div>
-                <p className="mt-1 text-sm text-white/35">
-                  {integration.description}
-                </p>
-                <button
-                  disabled={integration.status === "coming_soon"}
-                  className={`mt-4 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-200 ${
-                    integration.status === "available"
-                      ? "bg-astra-red/15 text-astra-red-light border border-astra-red/25 hover:bg-astra-red/25 glow-sm"
-                      : "bg-white/[0.03] text-white/20 border border-white/[0.06] cursor-not-allowed"
-                  }`}
-                >
-                  {integration.status === "available" ? "Conectar" : "Indisponível"}
-                </button>
-              </div>
+              ) : (
+                <>
+                  <p className="mt-1 text-sm text-white/35">
+                    Conecte sua conta do Facebook Ads para importar dados de campanhas automaticamente.
+                  </p>
+                  <button
+                    onClick={handleFbConnect}
+                    disabled={fbLoading}
+                    className="mt-4 rounded-xl bg-astra-red/15 text-astra-red-light border border-astra-red/25 hover:bg-astra-red/25 glow-sm px-4 py-2 text-sm font-medium transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Conectar Facebook Ads
+                  </button>
+                </>
+              )}
             </div>
           </div>
-        ))}
+        </div>
+
+        {/* ===== GOOGLE ADS ===== */}
+        <div className="group relative overflow-hidden rounded-2xl p-6 transition-all duration-300 glass hover:bg-white/[0.06] gradient-border">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-red-500/15 border-red-500/20">
+              <BarChart3 className="h-6 w-6 text-red-400" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-white/90">Google Ads</h3>
+                <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+                  Em breve
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-white/35">
+                Integre com o Google Ads para acompanhar campanhas de pesquisa e display.
+              </p>
+              <button
+                disabled
+                className="mt-4 rounded-xl bg-white/[0.03] text-white/20 border border-white/[0.06] cursor-not-allowed px-4 py-2 text-sm font-medium"
+              >
+                Indisponível
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ===== GOOGLE PLANILHAS ===== */}
+        <div className="group relative overflow-hidden rounded-2xl p-6 transition-all duration-300 glass hover:bg-white/[0.06] gradient-border">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-emerald-500/15 border-emerald-500/20">
+              <Database className="h-6 w-6 text-emerald-400" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-white/90">Google Planilhas</h3>
+                <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+                  Em breve
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-white/35">
+                Conecte planilhas do Google para importar e exportar dados automaticamente.
+              </p>
+              <button
+                disabled
+                className="mt-4 rounded-xl bg-white/[0.03] text-white/20 border border-white/[0.06] cursor-not-allowed px-4 py-2 text-sm font-medium"
+              >
+                Indisponível
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ===== WEBHOOKS ===== */}
+        <div className="group relative overflow-hidden rounded-2xl p-6 transition-all duration-300 glass hover:bg-white/[0.06] gradient-border">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border bg-purple-500/15 border-purple-500/20">
+              <Webhook className="h-6 w-6 text-purple-400" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-white/90">Webhooks</h3>
+                <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-medium text-amber-400">
+                  Em breve
+                </span>
+              </div>
+              <p className="mt-1 text-sm text-white/35">
+                Configure webhooks para receber dados em tempo real de qualquer plataforma.
+              </p>
+              <button
+                disabled
+                className="mt-4 rounded-xl bg-white/[0.03] text-white/20 border border-white/[0.06] cursor-not-allowed px-4 py-2 text-sm font-medium"
+              >
+                Indisponível
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="rounded-2xl glass border-dashed p-8 text-center">
