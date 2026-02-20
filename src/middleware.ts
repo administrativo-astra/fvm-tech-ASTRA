@@ -35,7 +35,8 @@ export async function middleware(request: NextRequest) {
                       request.nextUrl.pathname.startsWith("/auth/callback");
 
   // OAuth callback routes (need auth but shouldn't redirect logged-in users)
-  const isOAuthCallback = request.nextUrl.pathname.startsWith("/api/integrations/facebook/callback");
+  const isOAuthCallback = request.nextUrl.pathname.startsWith("/api/integrations/facebook/callback")
+    || request.nextUrl.pathname.startsWith("/api/integrations/google-sheets/callback");
   
   if (!user && !isAuthRoute && !isOAuthCallback) {
     const url = request.nextUrl.clone();
